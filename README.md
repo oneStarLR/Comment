@@ -1,20 +1,20 @@
-# SpringBoot和Mybatis实现评论楼中楼功能（一张表搞定）
-
-零、效果
-
+### 零、效果
 在网上搜索了很多，发现很多都是用两张表或者使用jpa实现的，本篇文章将讲述使用一张表来实现评论回复楼中楼功能，使用Mybatis作为持久层框架，有图有真相，先来看看最终效果
 
-image
+![image](https://note.youdao.com/yws/api/personal/file/ECF19CBD825F452EA46EB8D0B7890378?method=download&shareKey=4496729e44aba73a276a1b075b5e5b9c)
 
-一、数据库设计
-
+### 一、数据库设计
 首先来看看有哪些字段，既然是评论回复，你觉得应该有哪些字段呢，带着功能去思考这个问题
+> 首先是主键（id），既然是评论，必须要有评论人的姓名（nickname），为了以后能联系到评论人，需要评论人的邮箱（email），然后就是评论内容（content），为了方便显示，还需要评论人的头像（avatar），评论的时间当然少不了（create_time），既然是一张表，要如何确定回复的所属关系呢，那就需要知道是回复谁的评论（parent_comment_id）。bingo！这些字段就OK了，可能你会问，那回复怎么办，问题不大，可以在实体类中创建一个回复评论的集合replyComments，用来存储回复消息。
 
-首先是主键（id），既然是评论，必须要有评论人的姓名（nickname），为了以后能联系到评论人，需要评论人的邮箱（email），然后就是评论内容（content），为了方便显示，还需要评论人的头像（avatar），评论的时间当然少不了（create_time），既然是一张表，要如何确定回复的所属关系呢，那就需要知道是回复谁的评论（parent_comment_id）。bingo！这些字段就OK了，可能你会问，那回复怎么办，问题不大，可以在实体类中创建一个回复评论的集合replyComments，用来存储回复消息。
 表结构如下：
+
+
+
 
 建表语句如下：
 
+```sql
 create database comment;
 
 DROP TABLE IF EXISTS `comment`;
@@ -29,12 +29,18 @@ CREATE TABLE `comment` (
   `parent_comment_id` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8;
-二、搭建SpringBoot框架
+```
 
-如图，选择相应的组件，创建SpringBoot项目
-image
 
-将application.properties配置文件改成yml后缀，即application.yml，主要对thymeleaf模板、数据库、mybatis、评论头像进行配置，配置如下：
+### 二、搭建SpringBoot框架
+1. 如图，选择相应的组件，创建SpringBoot项目
+
+![image](https://note.youdao.com/yws/api/personal/file/9382E293A4BA457CA63A36AE5818C366?method=download&shareKey=bf10961f80234493b74736e98768be17)
+
+2. 将application.properties配置文件改成yml后缀，即application.yml，主要对thymeleaf模板、数据库、mybatis、评论头像进行配置，配置如下：
+
+
+```yml
 spring:
 #配置thymeleaf模板
   thymeleaf:
@@ -55,12 +61,12 @@ mybatis:
 
 #配置评论头像
 comment.avatar: /images/avatar.png
-三、代码编写
+```
 
-1. 实体类
-
+### 三、代码编写
+#### 1. 实体类
 创建实体类，这里除了字段和回复评论列表外父级评论和父级评论姓名的变量，用来设置父级评论的id和显示父级评论姓名的
-
+```java
 package com.star.entity;
 
 import java.util.ArrayList;
@@ -92,10 +98,12 @@ public class Comment {
     //省去了get和set还有toString方法
 
 }
-2. 业务层接口
+```
 
+#### 2. 业务层接口
 创建业务层service接口，主要是查询评论列表和存储评论两个接口
 
+```java
 package com.star.service;
 
 import com.star.entity.Comment;
@@ -118,10 +126,12 @@ public interface CommentService {
     int saveComment(Comment comment);
 
 }
-3. 持久层接口
+```
 
+#### 3. 持久层接口
 创建持久层dao接口，只要有添加评论、查询父级评论、查询一级回复、查询二级以及所有子集回复
 
+```java
 package com.star.dao;
 
 import com.star.entity.Comment;
@@ -155,10 +165,12 @@ public interface CommentDao {
     List<Comment> findByReplayId(@Param("childId") Long childId);
 
 }
-4. Mapper
+```
 
+#### 4. Mapper
 创建CommentDao.xml文件，主要是添加评论、查询父级评论、查询一级回复、查询二级以及所有子集评论的SQL语句
 
+```xml
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="com.star.dao.CommentDao">
@@ -195,8 +207,11 @@ public interface CommentDao {
 
 </mapper>
 
-5. 控制器CommentController
+```
 
+#### 5. 控制器CommentController
+
+```java
 package com.star.controller;
 
 import com.star.entity.Comment;
@@ -249,16 +264,18 @@ public class CommentController {
         return "redirect:/comment";
     }
 }
-6. 接口实现类
+```
 
+#### 6. 接口实现类
 逻辑都在接口实现类CommentServiceImpl里面实现，咱们来梳理一下逻辑（逻辑没梳理好，代码永远都是乱的，逻辑是第一步！！！），添加评论直接insert就可以了，这里主要讲一下查询：
+1. 根据id为“-1”查询出所有父评论
+2. 根据父评论的id查询出一级子回复
+3. 根据子回复的id循环迭代查询出所有子集回复
+4. 将查询出来的子回复放到一个集合中
 
-根据id为“-1”查询出所有父评论
-根据父评论的id查询出一级子回复
-根据子回复的id循环迭代查询出所有子集回复
-将查询出来的子回复放到一个集合中
 要注意将父评论的姓名给set进去，代码如下：
 
+```java
 package com.star.service.impl;
 
 import com.star.dao.CommentDao;
@@ -364,10 +381,12 @@ public class CommentServiceImpl implements CommentService {
         return commentDao.saveComment(comment);
     }
 }
-7. 前端页面comment.html
+```
 
+#### 7. 前端页面comment.html
 最后是前端显示页面，这里采用semantic-ui作为UI组件，使用thymeleaf模板解析，记得在static文件夹下创建images文件夹，并放一张名为avatar.png的图片
 
+```html
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
 <head>
@@ -537,8 +556,11 @@ public class CommentServiceImpl implements CommentService {
 </script>
 </body>
 </html>
-8. 目录结构
+```
 
-image
+#### 8. 目录结构
+
+![image](https://note.youdao.com/yws/api/personal/file/5CAF1B63D4564C0D9BC49A1455766863?method=download&shareKey=c012a49d9448e38862cf88723fb1b089)
+
 
 源码地址，欢迎star：https://github.com/oneStarLR/SpringBoot-Mybatis-
