@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>评论楼中楼功能</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/semantic-ui/2.2.4/semantic.min.css">
+</head>
+<body>
+
+<div id="waypoint" class="m-margin- animated fadeIn">
+  <div class="ui container m-opacity box-shadow-max">
+    <div  class="ui bottom attached segment">
+      <!--评论区域列表-->
+      <div id="comment-container"  class="ui teal segment">
+        <div th:fragment="commentList">
+          <div class="ui threaded comments" style="max-width: 100%;">
+            <h3 class="ui dividing header">评论</h3>
+            <div class="comment" th:each="comment : ${comments}">
+              <a class="avatar">
+                <img src="../static/images/avatar.png" th:src="@{${comment.avatar}}">
+              </a>
+              <div class="content">
+                <a class="author" >
+                  <span th:text="${comment.nickname}">小红</span>
+                </a>
+                <div class="metadata">
+                  <span class="date" th:text="${#dates.format(comment.createTime,'yyyy-MM-dd HH:mm')}">Today at 5:42PM</span>
+                </div>
+                <div class="text" th:text="${comment.content}">
+                  愿你走出半生，归来仍是少年！
+                </div>
+                <div class="actions">
+                  <a class="reply" data-commentid="1" data-commentnickname="Matt" th:attr="data-commentid=${comment.id},data-commentnickname=${comment.nickname}" onclick="reply(this)">回复</a>
+                </div>
+              </div>
+              <!--子集评论-->
+              <div class="comments" th:if="${#arrays.length(comment.replyComments)}>0">
+                <div class="comment" th:each="reply : ${comment.replyComments}">
+                  <a class="avatar">
+                    <img src="../static/images/avatar.png" th:src="@{${reply.avatar}}">
+                  </a>
+                  <div class="content">
+                    <a class="author" >
+                      <span th:text="${reply.nickname}">小白</span>
+                      &nbsp;<span th:text="|@ ${reply.parentNickname}|" class="m-teal">@ 小红</span>
+                    </a>
+                    <div class="metadata">
+                      <span class="date" th:text="${#dates.format(reply.createTime,'yyyy-MM-dd HH:mm')}">Today at 5:42PM</span>
+                    </div>
+                    <div class="text" th:text="${reply.content}">
+                      你也是！
+                    </div>
+                    <div class="actions">
+                      <a class="reply" data-commentid="1" data-commentnickname="Matt" th:attr="data-commentid=${reply.id},data-commentnickname=${reply.nickname}" onclick="reply(this)">回复</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+      <div id="comment-form" class="ui form">
+        <input type="hidden" name="parentComment.id" value="-1">
+        <div class="field">
+          <textarea name="content" placeholder="请输入评论信息..."></textarea>
+        </div>
+        <div class="fields">
+          <div class="field m-mobile-wide m-margin-bottom-small">
+            <div class="ui left icon input">
+              <i class="user icon"></i>
+              <input type="text" name="nickname" placeholder="姓名" th:value="${session.user}!=null ? ${session.user.nickname}">
+            </div>
+          </div>
+          <div class="field m-mobile-wide m-margin-bottom-small">
+            <div class="ui left icon input">
+              <i class="mail icon"></i>
+              <input type="text" name="email" placeholder="邮箱" th:value="${session.user}!=null ? ${session.user.email}">
+            </div>
+          </div>
+          <div class="field  m-margin-bottom-small m-mobile-wide">
+            <button id="commentpost-btn" type="button" class="ui teal button m-mobile-wide"><i class="edit icon"></i>发布</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.2/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/semantic-ui/2.2.4/semantic.min.js"></script>
+
+<script th:inline="javascript">
+    //评论表单验证
+    $('.ui.form').form({
+        fields: {
+            title: {
+                identifier: 'content',
+                rules: [{
+                    type: 'empty',
+                    prompt: '请输入评论内容'
+                }
+                ]
+            },
+            content: {
+                identifier: 'nickname',
+                rules: [{
+                    type: 'empty',
+                    prompt: '请输入你的大名'
+                }]
+            },
+            type: {
+                identifier: 'email',
+                rules: [{
+                    type: 'email',
+                    prompt: '请填写正确的邮箱地址'
+                }]
+            }
+        }
+    });
+
+
+    $(function () {
+        $("#comment-container").load(/*[[@{/comment}]]*/"comment/");
+    });
+
+    $('#commentpost-btn').click(function () {
+        var boo = $('.ui.form').form('validate form');
+        if (boo) {
+            console.log('校验成功');
+            postData();
+        } else {
+            console.log('校验失败');
+        }
+    });
+
+    function postData() {
+        $("#comment-container").load(/*[[@{/comment}]]*/"",{
+            "parentComment.id" : $("[name='parentComment.id']").val(),
+            "nickname": $("[name='nickname']").val(),
+            "email"   : $("[name='email']").val(),
+            "content" : $("[name='content']").val()
+        },function (responseTxt, statusTxt, xhr) {
+            // $(window).scrollTo($('#goto'),0);
+            clearContent();
+        });
+    }
+
+    function clearContent() {
+        $("[name='nickname']").val('');
+        $("[name='email']").val('');
+        $("[name='content']").val('');
+        $("[name='parentComment.id']").val(-1);
+        $("[name='content']").attr("placeholder", "请输入评论信息...");
+    }
+
+    function reply(obj) {
+        var commentId = $(obj).data('commentid');
+        var commentNickname = $(obj).data('commentnickname');
+        $("[name='content']").attr("placeholder", "@"+commentNickname).focus();
+        $("[name='parentComment.id']").val(commentId);
+        $(window).scrollTo($('#comment-form'),500);
+    }
+</script>
+</body>
+</html>
